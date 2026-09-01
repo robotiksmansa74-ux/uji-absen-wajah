@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Absensi Wajah Mandiri (Ponsel Server & Kamera)</title>
+    <!-- Tailwind CSS untuk styling cepat -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-slate-800 p-4 shadow-md text-center">
+        <h1 class="text-xl font-bold">📱 Absensi Wajah HP Mandiri</h1>
+        <p class="text-xs text-slate-400">Ponsel berfungsi sebagai Kamera & Pusat Data Lokal</p>
+    </header>
+
+    <!-- Konten Utama -->
+    <main class="flex-1 flex flex-col p-4 max-w-md mx-auto w-full justify-between">
+        
+        <!-- Area Kamera & Status -->
+        <div class="relative bg-black rounded-xl overflow-hidden shadow-lg aspect-[3/4] flex items-center justify-center">
+            <video id="videoElement" autoplay playsinline class="w-full h-full object-cover"></video>
+            
+            <!-- Overlay Kotak & Status -->
+            <div class="absolute bottom-4 inset-x-4 bg-black/70 backdrop-blur-md p-3 rounded-lg text-center">
+                <p id="statusText" class="text-sm font-semibold text-emerald-400">Menyiapkan Kamera...</p>
+            </div>
+        </div>
+
+        <!-- Panel Kontrol & Pendaftaran -->
+        <div class="mt-4 space-y-3">
+            <input type="text" id="studentNameInput" placeholder="Masukkan Nama Siswa" class="w-full p-3 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500">
+            
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="registerStudent()" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg font-semibold text-sm transition">
+                    Daftar Wajah Baru
+                </button>
+                <button onclick="startAttendance()" class="bg-emerald-600 hover:bg-emerald-500 p-3 rounded-lg font-semibold text-sm transition">
+                    Mulai Absensi
+                </button>
+            </div>
+        </div>
+
+        <!-- Panel Data Lokal (Pusat Data Sederhana) -->
+        <div class="mt-4 bg-slate-800 p-3 rounded-xl">
+            <h2 class="text-xs font-bold text-slate-400 uppercase mb-1">Pusat Data Lokal (Database Ponsel):</h2>
+            <div id="databaseStats" class="text-xs text-slate-300">Total Siswa Terdaftar: 0 | Absensi Hari Ini: 0</div>
+        </div>
+    </main>
+
+    <!-- Skrip Logika Aplikasi -->
+    <script>
+        const video = document.getElementById('videoElement');
+        const statusText = document.getElementById('statusText');
+        const studentNameInput = document.getElementById('studentNameInput');
+        const dbStats = document.getElementById('databaseStats');
+
+        // Simulasi Database Lokal Menggunakan localStorage
+        let studentDatabase = JSON.parse(localStorage.getItem('students')) || {};
+        let attendanceLog = JSON.parse(localStorage.getItem('attendance')) || {};
+
+        updateStats();
+
+        // 1. Mengaktifkan Kamera Ponsel Langsung di Browser
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "user" } // Menggunakan kamera depan
+                });
+                video.srcObject = stream;
+                statusText.innerText = "Kamera Siap. Silakan daftarkan atau absen.";
+            } catch (error) {
+                statusText.innerText = "Gagal mengakses kamera: " + error.message;
+                statusText.classList.remove('text-emerald-400');
+                statusText.classList.add('text-rose-400');
+            }
+        }
+
+        // 2. Fungsi Mendaftarkan Wajah Siswa ke Memori Ponsel
+        function registerStudent() {
+            const name = studentNameInput.value.trim();
+            if (!name) {
+                alert("Harap masukkan nama siswa terlebih dahulu!");
+                return;
+            }
+
+            // Simpan data ke database lokal ponsel (localStorage)
+            // Sebagai simulasi, kita simpan penanda unik wajah
+            studentDatabase[name] = {
+                registeredAt: new Date().toISOString(),
+                token: Math.random().toString(36).substring(7) 
+            };
+            
+            localStorage.setItem('students', JSON.stringify(studentDatabase));
+            
+            statusText.innerText = `Berhasil mendaftarkan: ${name}`;
+            studentNameInput.value = "";
+            updateStats();
+        }
+
+        // 3. Fungsi Memulai Pemindaian Absensi
+        function startAttendance() {
+            const keys = Object.keys(studentDatabase);
+            if (keys.length === 0) {
+                alert("Belum ada data siswa yang terdaftar di ponsel ini!");
+                return;
+            }
+
+            statusText.innerText = "Memindai wajah...";
+
+            // Simulasi deteksi otomatis pencocokan wajah setelah 2 detik
+            setTimeout(() => {
+                // Mengambil siswa acak dari database lokal sebagai simulasi kecocokan AI
+                const randomStudent = keys[Math.floor(Math.random() * keys.length)];
+                const today = new Date().toISOString().slice(0, 10);
+                const attendanceKey = `${today}_${randomStudent}`;
+
+                if (attendanceLog[attendanceKey]) {
+                    statusText.innerText = `${randomStudent} sudah absen hari ini!`;
+                } else {
+                    attendanceLog[attendanceKey] = {
+                        name: randomStudent,
+                        time: new Date().toLocaleTimeString()
+                    };
+                    localStorage.setItem('attendance', JSON.stringify(attendanceLog));
+                    statusText.innerText = `Absen Berhasil: ${randomStudent}!`;
+                    updateStats();
+                }
+            }, 2000);
+        }
+
+        // Memperbarui Tampilan Informasi Database Lokal di Layar
+        function updateStats() {
+            const totalStudents = Object.keys(studentDatabase).length;
+            const today = new Date().toISOString().slice(0, 10);
+            const totalAttendance = Object.keys(attendanceLog).filter(k => k.startsWith(today)).length;
+            
+            dbStats.innerText = `Total Siswa Terdaftar: ${totalStudents} | Absensi Hari Ini: ${totalAttendance}`;
+        }
+
+        // Jalankan kamera saat halaman dimuat
+        window.addEventListener('load', initCamera);
+    </script>
+</body>
+</html>
