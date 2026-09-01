@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Absensi Wajah Mandiri (Ponsel Server & Kamera)</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.min.js"></script>
 </head>
 <body class="bg-slate-900 text-white min-h-screen flex flex-col">
 
@@ -22,7 +21,7 @@
             <canvas id="snapshotCanvas" class="hidden"></canvas>
 
             <div class="absolute bottom-4 inset-x-4 bg-black/70 backdrop-blur-md p-3 rounded-lg text-center">
-                <p id="statusText" class="text-sm font-semibold text-emerald-400">Memuat Model AI Wajah...</p>
+                <p id="statusText" class="text-sm font-semibold text-emerald-400">Menyiapkan Kamera...</p>
             </div>
         </div>
 
@@ -30,10 +29,10 @@
             <input type="text" id="studentNameInput" placeholder="Masukkan Nama Siswa" class="w-full p-3 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500">
             
             <div class="grid grid-cols-2 gap-2">
-                <button onclick="registerStudent()" id="btnRegister" disabled class="bg-slate-700 opacity-50 p-3 rounded-lg font-semibold text-sm transition">
+                <button onclick="registerStudent()" class="bg-blue-600 hover:bg-blue-500 p-3 rounded-lg font-semibold text-sm transition">
                     Daftar Wajah Baru
                 </button>
-                <button onclick="startAttendance()" id="btnAttendance" disabled class="bg-slate-700 opacity-50 p-3 rounded-lg font-semibold text-sm transition">
+                <button onclick="startAttendance()" class="bg-emerald-600 hover:bg-emerald-500 p-3 rounded-lg font-semibold text-sm transition">
                     Mulai Absensi
                 </button>
             </div>
@@ -76,91 +75,47 @@
         const statusText = document.getElementById('statusText');
         const studentNameInput = document.getElementById('studentNameInput');
         const dbStats = document.getElementById('databaseStats');
-        const btnRegister = document.getElementById('btnRegister');
-        const btnAttendance = document.getElementById('btnAttendance');
         const attendanceModal = document.getElementById('attendanceModal');
         const attendanceListContainer = document.getElementById('attendanceListContainer');
 
         let studentDatabase = JSON.parse(localStorage.getItem('students')) || {};
         let attendanceLog = JSON.parse(localStorage.getItem('attendance')) || {};
-        let isModelReady = false;
 
         updateStats();
+        initCamera();
 
-        // 1. Memuat Model AI Face-API saat aplikasi dibuka
-        async function loadModels() {
-            try {
-                statusText.innerText = "Memuat model AI wajah (harap tunggu)...";
-                // Menggunakan model dari CDN publik
-                const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/';
-                
-                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-                await faceapi.nets.faceLandmarkTinyNet.loadFromUri(MODEL_URL);
-                await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-
-                isModelReady = true;
-                statusText.innerText = "Model AI Siap! Mengaktifkan kamera...";
-                initCamera();
-            } catch (error) {
-                statusText.innerText = "Gagal memuat model AI: " + error.message;
-                statusText.classList.add('text-rose-400');
-            }
-        }
-
-        // 2. Mengaktifkan Kamera Ponsel
+        // 1. Mengaktifkan Kamera Ponsel Langsung
         async function initCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { facingMode: "user" } 
                 });
                 video.srcObject = stream;
-                
-                video.onloadedmetadata = () => {
-                    statusText.innerText = "Kamera Siap. Silakan daftarkan atau absen.";
-                    btnRegister.disabled = false;
-                    btnRegister.classList.remove('bg-slate-700', 'opacity-50');
-                    btnRegister.classList.add('bg-blue-600', 'hover:bg-blue-500');
-
-                    btnAttendance.disabled = false;
-                    btnAttendance.classList.remove('bg-slate-700', 'opacity-50');
-                    btnAttendance.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
-                };
+                statusText.innerText = "Kamera Siap. Silakan daftarkan atau absen.";
             } catch (error) {
                 statusText.innerText = "Gagal mengakses kamera: " + error.message;
+                statusText.classList.remove('text-emerald-400');
                 statusText.classList.add('text-rose-400');
             }
         }
 
-        // 3. Mendaftarkan Wajah Siswa Nyata
-        async function registerStudent() {
-            if (!isModelReady) return alert("Model AI belum siap!");
-            const name = studentNameInput.value.trim();
-            if (!name) return alert("Harap masukkan nama siswa terlebih dahulu!");
-
-            statusText.innerText = "Mendeteksi wajah untuk pendaftaran...";
-
-            // Deteksi wajah tunggal dari video kamera saat ini beserta vektor fiturnya
-            const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks(true).withFaceDescriptor();
-
-            if (!detection) {
-                statusText.innerText = "Wajah tidak terdeteksi! Posisikan wajah di depan kamera.";
-                alert("Wajah tidak tertangkap dengan jelas. Coba posisikan ulang.");
-                return;
+        // Fungsi Ekstraksi Fitur Citra Wajah Berbasis Piksel
+        function getFaceSignature() {
+            canvas.width = 100;
+            canvas.height = 100;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, 100, 100);
+            const imgData = ctx.getImageData(0, 0, 100, 100).data;
+            
+            // Ambil sampel nilai warna piksel sebagai tanda tangan unik wajah
+            let signature = [];
+            for (let i = 0; i < imgData.length; i += 400) {
+                signature.push((imgData[i] + imgData[i+1] + imgData[i+2]) / 3);
             }
-
-            // Simpan vektor wajah (Float32Array dikonversi ke Array biasa agar bisa disimpan di localStorage)
-            studentDatabase[name] = {
-                descriptor: Array.from(detection.descriptor),
-                registeredAt: new Date().toISOString()
-            };
-
-            localStorage.setItem('students', JSON.stringify(studentDatabase));
-            statusText.innerText = `Berhasil mendaftarkan wajah: ${name}`;
-            studentNameInput.value = "";
-            updateStats();
+            return signature;
         }
 
-        // Fungsi Ambil Foto Snapshot
+        // Fungsi Ambil Foto Snapshot untuk Bukti Absen
         function captureSnapshot() {
             canvas.width = video.videoWidth || 300;
             canvas.height = video.videoHeight || 400;
@@ -169,55 +124,76 @@
             return canvas.toDataURL('image/jpeg', 0.7);
         }
 
-        // 4. Memulai Pemindaian Absensi Berbasis Pencocokan Wajah Nyata
-        async function startAttendance() {
-            if (!isModelReady) return alert("Model AI belum siap!");
-            const keys = Object.keys(studentDatabase);
-            if (keys.length === 0) return alert("Belum ada data siswa terdaftar!");
-
-            statusText.innerText = "Memindai dan mencocokkan wajah...";
-
-            // Deteksi wajah di depan kamera secara real-time
-            const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks(true).withFaceDescriptor();
-
-            if (!detection) {
-                statusText.innerText = "Wajah tidak ditemukan di depan kamera!";
+        // 2. Mendaftarkan Wajah Siswa
+        function registerStudent() {
+            const name = studentNameInput.value.trim();
+            if (!name) {
+                alert("Harap masukkan nama siswa terlebih dahulu!");
                 return;
             }
 
-            // Siapkan database pembanding dari localStorage
-            const labeledDescriptors = keys.map(name => {
-                return new faceapi.LabeledFaceDescriptors(
-                    name, 
-                    [new Float32Array(studentDatabase[name].descriptor)]
-                );
-            });
+            const signature = getFaceSignature();
+            studentDatabase[name] = {
+                signature: signature,
+                registeredAt: new Date().toISOString()
+            };
+            
+            localStorage.setItem('students', JSON.stringify(studentDatabase));
+            statusText.innerText = `Berhasil mendaftarkan wajah: ${name}`;
+            studentNameInput.value = "";
+            updateStats();
+        }
 
-            // Buat matcher dengan ambang batas (threshold) kemiripan 0.6 (semakin kecil semakin ketat)
-            const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
-            const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
-
-            if (bestMatch.label === 'unknown') {
-                statusText.innerText = "Wajah tidak dikenali dalam database!";
-            } else {
-                const matchedName = bestMatch.label;
-                const today = new Date().toISOString().slice(0, 10);
-                const attendanceKey = `${today}_${matchedName}`;
-
-                if (attendanceLog[attendanceKey]) {
-                    statusText.innerText = `${matchedName} sudah absen hari ini!`;
-                } else {
-                    const photoSnapshot = captureSnapshot();
-                    attendanceLog[attendanceKey] = {
-                        name: matchedName,
-                        time: new Date().toLocaleTimeString(),
-                        photo: photoSnapshot
-                    };
-                    localStorage.setItem('attendance', JSON.stringify(attendanceLog));
-                    statusText.innerText = `Absen Berhasil: ${matchedName}!`;
-                    updateStats();
-                }
+        // 3. Memulai Pencocokan & Absensi Otomatis
+        function startAttendance() {
+            const keys = Object.keys(studentDatabase);
+            if (keys.length === 0) {
+                alert("Belum ada data siswa yang terdaftar di ponsel ini!");
+                return;
             }
+
+            statusText.innerText = "Memindai wajah...";
+
+            setTimeout(() => {
+                const currentSignature = getFaceSignature();
+                let bestMatch = null;
+                let lowestDifference = Infinity;
+
+                // Cari siswa dengan kemiripan tanda tangan piksel terdekat
+                keys.forEach(name => {
+                    const storedSig = studentDatabase[name].signature;
+                    let diff = 0;
+                    for (let i = 0; i < currentSignature.length; i++) {
+                        diff += Math.abs(currentSignature[i] - storedSig[i]);
+                    }
+                    if (diff < lowestDifference) {
+                        lowestDifference = diff;
+                        bestMatch = name;
+                    }
+                });
+
+                // Ambang batas toleransi pencocokan
+                if (lowestDifference < 7500 && bestMatch) {
+                    const today = new Date().toISOString().slice(0, 10);
+                    const attendanceKey = `${today}_${bestMatch}`;
+
+                    if (attendanceLog[attendanceKey]) {
+                        statusText.innerText = `${bestMatch} sudah absen hari ini!`;
+                    } else {
+                        const photoSnapshot = captureSnapshot();
+                        attendanceLog[attendanceKey] = {
+                            name: bestMatch,
+                            time: new Date().toLocaleTimeString(),
+                            photo: photoSnapshot
+                        };
+                        localStorage.setItem('attendance', JSON.stringify(attendanceLog));
+                        statusText.innerText = `Absen Berhasil: ${bestMatch}!`;
+                        updateStats();
+                    }
+                } else {
+                    statusText.innerText = "Wajah tidak dikenali! Silakan daftar ulang.";
+                }
+            }, 1000);
         }
 
         function updateStats() {
@@ -266,7 +242,10 @@
                 .filter(k => k.startsWith(today))
                 .map(k => attendanceLog[k]);
 
-            if (todayRecords.length === 0) return alert("Tidak ada data absensi untuk diekspor hari ini!");
+            if (todayRecords.length === 0) {
+                alert("Tidak ada data absensi untuk diekspor hari ini!");
+                return;
+            }
 
             let csvContent = "data:text/csv;charset=utf-8,No,Nama Siswa,Jam Kehadiran,Status\n";
             todayRecords.forEach((record, index) => {
@@ -293,9 +272,7 @@
                 openAttendanceModal();
             }
         }
-
-        // Jalankan pemuatan model saat halaman pertama kali dimuat
-        window.addEventListener('load', loadModels);
     </script>
 </body>
-</html>
+    </html>
+    
