@@ -84,7 +84,6 @@
         updateStats();
         initCamera();
 
-        // 1. Mengaktifkan Kamera Ponsel Langsung
         async function initCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -99,23 +98,22 @@
             }
         }
 
-        // Fungsi Ekstraksi Fitur Citra Wajah Berbasis Piksel
+        // Ekstraksi Fitur Citra Diperluas (Lebih stabil terhadap variasi posisi/cahaya)
         function getFaceSignature() {
-            canvas.width = 100;
-            canvas.height = 100;
+            canvas.width = 120;
+            canvas.height = 120;
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, 100, 100);
-            const imgData = ctx.getImageData(0, 0, 100, 100).data;
+            ctx.drawImage(video, 0, 0, 120, 120);
+            const imgData = ctx.getImageData(0, 0, 120, 120).data;
             
-            // Ambil sampel nilai warna piksel sebagai tanda tangan unik wajah
             let signature = [];
-            for (let i = 0; i < imgData.length; i += 400) {
+            // Mengambil lebih banyak sampel piksel (setiap 300 data)
+            for (let i = 0; i < imgData.length; i += 300) {
                 signature.push((imgData[i] + imgData[i+1] + imgData[i+2]) / 3);
             }
             return signature;
         }
 
-        // Fungsi Ambil Foto Snapshot untuk Bukti Absen
         function captureSnapshot() {
             canvas.width = video.videoWidth || 300;
             canvas.height = video.videoHeight || 400;
@@ -124,7 +122,6 @@
             return canvas.toDataURL('image/jpeg', 0.7);
         }
 
-        // 2. Mendaftarkan Wajah Siswa
         function registerStudent() {
             const name = studentNameInput.value.trim();
             if (!name) {
@@ -144,7 +141,6 @@
             updateStats();
         }
 
-        // 3. Memulai Pencocokan & Absensi Otomatis
         function startAttendance() {
             const keys = Object.keys(studentDatabase);
             if (keys.length === 0) {
@@ -159,7 +155,6 @@
                 let bestMatch = null;
                 let lowestDifference = Infinity;
 
-                // Cari siswa dengan kemiripan tanda tangan piksel terdekat
                 keys.forEach(name => {
                     const storedSig = studentDatabase[name].signature;
                     let diff = 0;
@@ -172,8 +167,9 @@
                     }
                 });
 
-                // Ambang batas toleransi pencocokan
-                if (lowestDifference < 7500 && bestMatch) {
+                // AMBANG BATAS DIPERLONGGAR (Dari 7500 dinaikkan ke 15000)
+                // Ini membuat pencocokan wajah lebih toleran terhadap perbedaan cahaya atau sudut pandang
+                if (lowestDifference < 15000 && bestMatch) {
                     const today = new Date().toISOString().slice(0, 10);
                     const attendanceKey = `${today}_${bestMatch}`;
 
@@ -191,7 +187,7 @@
                         updateStats();
                     }
                 } else {
-                    statusText.innerText = "Wajah tidak dikenali! Silakan daftar ulang.";
+                    statusText.innerText = "Wajah tidak dikenali! Pastikan pencahayaan cukup & wajah pas di tengah.";
                 }
             }, 1000);
         }
@@ -274,5 +270,4 @@
         }
     </script>
 </body>
-    </html>
-    
+</html>
