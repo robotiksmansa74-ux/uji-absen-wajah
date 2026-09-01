@@ -37,9 +37,14 @@
                 </button>
             </div>
 
-            <button onclick="openAttendanceModal()" class="w-full bg-slate-700 hover:bg-slate-600 p-3 rounded-lg font-semibold text-sm transition">
-                📋 Lihat Data Absen Hari Ini
-            </button>
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="openAttendanceModal()" class="bg-slate-700 hover:bg-slate-600 p-3 rounded-lg font-semibold text-xs transition">
+                    📋 Data Absen Hari Ini
+                </button>
+                <button onclick="openStudentModal()" class="bg-slate-700 hover:bg-slate-600 p-3 rounded-lg font-semibold text-xs transition">
+                    📂 Database Siswa
+                </button>
+            </div>
         </div>
 
         <div class="mt-4 bg-slate-800 p-3 rounded-xl">
@@ -69,6 +74,22 @@
         </div>
     </div>
 
+    <div id="studentModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-800 w-full max-w-md rounded-2xl p-5 flex flex-col max-h-[85vh]">
+            <div class="flex justify-between items-center mb-3">
+                <h2 class="font-bold text-lg">Database Siswa Terdaftar</h2>
+                <button onclick="closeStudentModal()" class="text-slate-400 hover:text-white font-bold text-lg">&times;</button>
+            </div>
+            
+            <div id="studentListContainer" class="flex-1 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-700 mb-3">
+                </div>
+
+            <button onclick="closeStudentModal()" class="w-full bg-slate-700 hover:bg-slate-600 p-2.5 rounded-lg text-xs font-semibold transition">
+                Tutup
+            </button>
+        </div>
+    </div>
+
     <script>
         const video = document.getElementById('videoElement');
         const canvas = document.getElementById('snapshotCanvas');
@@ -77,6 +98,8 @@
         const dbStats = document.getElementById('databaseStats');
         const attendanceModal = document.getElementById('attendanceModal');
         const attendanceListContainer = document.getElementById('attendanceListContainer');
+        const studentModal = document.getElementById('studentModal');
+        const studentListContainer = document.getElementById('studentListContainer');
 
         let studentDatabase = JSON.parse(localStorage.getItem('students')) || {};
         let attendanceLog = JSON.parse(localStorage.getItem('attendance')) || {};
@@ -98,7 +121,6 @@
             }
         }
 
-        // Ekstraksi Fitur Citra Diperluas (Lebih stabil terhadap variasi posisi/cahaya)
         function getFaceSignature() {
             canvas.width = 120;
             canvas.height = 120;
@@ -107,7 +129,6 @@
             const imgData = ctx.getImageData(0, 0, 120, 120).data;
             
             let signature = [];
-            // Mengambil lebih banyak sampel piksel (setiap 300 data)
             for (let i = 0; i < imgData.length; i += 300) {
                 signature.push((imgData[i] + imgData[i+1] + imgData[i+2]) / 3);
             }
@@ -132,7 +153,7 @@
             const signature = getFaceSignature();
             studentDatabase[name] = {
                 signature: signature,
-                registeredAt: new Date().toISOString()
+                registeredAt: new Date().toLocaleDateString()
             };
             
             localStorage.setItem('students', JSON.stringify(studentDatabase));
@@ -167,8 +188,6 @@
                     }
                 });
 
-                // AMBANG BATAS DIPERLONGGAR (Dari 7500 dinaikkan ke 15000)
-                // Ini membuat pencocokan wajah lebih toleran terhadap perbedaan cahaya atau sudut pandang
                 if (lowestDifference < 15000 && bestMatch) {
                     const today = new Date().toISOString().slice(0, 10);
                     const attendanceKey = `${today}_${bestMatch}`;
@@ -197,6 +216,47 @@
             const today = new Date().toISOString().slice(0, 10);
             const totalAttendance = Object.keys(attendanceLog).filter(k => k.startsWith(today)).length;
             dbStats.innerText = `Total Siswa Terdaftar: ${totalStudents} | Absensi Hari Ini: ${totalAttendance}`;
+        }
+
+        // Modal Database Siswa
+        function openStudentModal() {
+            studentListContainer.innerHTML = '';
+            const keys = Object.keys(studentDatabase);
+
+            if (keys.length === 0) {
+                studentListContainer.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">Belum ada siswa yang terdaftar.</p>';
+            } else {
+                keys.forEach(name => {
+                    const student = studentDatabase[name];
+                    const item = document.createElement('div');
+                    item.className = 'flex justify-between items-center py-2 text-sm';
+                    item.innerHTML = `
+                        <div>
+                            <p class="font-medium text-white">${name}</p>
+                            <p class="text-[10px] text-slate-400">Terdaftar: ${student.registeredAt}</p>
+                        </div>
+                        <button onclick="deleteStudent('${name}')" class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white px-2.5 py-1 rounded text-xs transition">
+                            Hapus
+                        </button>
+                    `;
+                    studentListContainer.appendChild(item);
+                });
+            }
+            studentModal.classList.remove('hidden');
+        }
+
+        function closeStudentModal() {
+            studentModal.classList.add('hidden');
+        }
+
+        // Hapus Data Siswa Tertentu
+        function deleteStudent(name) {
+            if (confirm(`Yakin ingin menghapus data siswa: ${name}?`)) {
+                delete studentDatabase[name];
+                localStorage.setItem('students', JSON.stringify(studentDatabase));
+                updateStats();
+                openStudentModal(); // Refresh tampilan modal
+            }
         }
 
         function openAttendanceModal() {
@@ -270,4 +330,5 @@
         }
     </script>
 </body>
-</html>
+    </html>
+    
