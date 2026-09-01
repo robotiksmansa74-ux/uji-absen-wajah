@@ -160,7 +160,6 @@
             return canvas.toDataURL('image/jpeg', 0.7);
         }
 
-        // Mendaftarkan Wajah (Menyimpan Rumus Wajah & Foto Profil)
         function registerStudent() {
             const name = studentNameInput.value.trim();
             if (!name) {
@@ -169,7 +168,7 @@
             }
 
             const signature = getFaceSignature();
-            const photoProfile = captureSnapshot(); // Ambil foto wajah untuk database siswa
+            const photoProfile = captureSnapshot();
 
             studentDatabase[name] = {
                 signature: signature,
@@ -239,7 +238,6 @@
             dbStats.innerText = `Total Siswa Terdaftar: ${totalStudents} | Absensi Hari Ini: ${totalAttendance}`;
         }
 
-        // Tampilan Database Siswa Beserta Foto & Rumus Wajahnya
         function openStudentModal() {
             studentListContainer.innerHTML = '';
             const keys = Object.keys(studentDatabase);
