@@ -4,25 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Absensi Wajah Mandiri (Ponsel Server & Kamera)</title>
+    <!-- Tailwind CSS untuk styling cepat -->
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-white min-h-screen flex flex-col">
 
+    <!-- Header -->
     <header class="bg-slate-800 p-4 shadow-md text-center">
         <h1 class="text-xl font-bold">📱 Absensi Wajah HP Mandiri</h1>
         <p class="text-xs text-slate-400">Ponsel berfungsi sebagai Kamera & Pusat Data Lokal</p>
     </header>
 
+    <!-- Konten Utama -->
     <main class="flex-1 flex flex-col p-4 max-w-md mx-auto w-full justify-between">
         
+        <!-- Area Kamera & Status -->
         <div class="relative bg-black rounded-xl overflow-hidden shadow-lg aspect-[3/4] flex items-center justify-center">
             <video id="videoElement" autoplay playsinline class="w-full h-full object-cover"></video>
             
+            <!-- Canvas Tersembunyi untuk Capture Foto -->
+            <canvas id="snapshotCanvas" class="hidden"></canvas>
+
+            <!-- Overlay Kotak & Status -->
             <div class="absolute bottom-4 inset-x-4 bg-black/70 backdrop-blur-md p-3 rounded-lg text-center">
                 <p id="statusText" class="text-sm font-semibold text-emerald-400">Menyiapkan Kamera...</p>
             </div>
         </div>
 
+        <!-- Panel Kontrol & Pendaftaran -->
         <div class="mt-4 space-y-3">
             <input type="text" id="studentNameInput" placeholder="Masukkan Nama Siswa" class="w-full p-3 rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500">
             
@@ -35,48 +44,59 @@
                 </button>
             </div>
 
+            <!-- Tombol Buka Data Absen -->
             <button onclick="openAttendanceModal()" class="w-full bg-slate-700 hover:bg-slate-600 p-3 rounded-lg font-semibold text-sm transition">
                 📋 Lihat Data Absen Hari Ini
             </button>
         </div>
 
+        <!-- Panel Data Lokal (Pusat Data Sederhana) -->
         <div class="mt-4 bg-slate-800 p-3 rounded-xl">
             <h2 class="text-xs font-bold text-slate-400 uppercase mb-1">Pusat Data Lokal (Database Ponsel):</h2>
             <div id="databaseStats" class="text-xs text-slate-300">Total Siswa Terdaftar: 0 | Absensi Hari Ini: 0</div>
         </div>
     </main>
 
+    <!-- Modal / Panel Data Absen & Ekspor -->
     <div id="attendanceModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
-        <div class="bg-slate-800 w-full max-w-md rounded-2xl p-5 flex flex-col max-h-[80vh]">
+        <div class="bg-slate-800 w-full max-w-md rounded-2xl p-5 flex flex-col max-h-[85vh]">
             <div class="flex justify-between items-center mb-3">
                 <h2 class="font-bold text-lg">Riwayat Absensi Hari Ini</h2>
                 <button onclick="closeAttendanceModal()" class="text-slate-400 hover:text-white font-bold text-lg">&times;</button>
             </div>
             
-            <div id="attendanceListContainer" class="flex-1 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-700">
-                </div>
+            <!-- Daftar Absen -->
+            <div id="attendanceListContainer" class="flex-1 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-700 mb-3">
+                <!-- Data akan dimasukkan lewat Javascript -->
+            </div>
 
-            <button onclick="clearAttendanceToday()" class="mt-4 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-600/50 p-2.5 rounded-lg text-xs font-semibold transition">
-                Reset Absensi Hari Ini
-            </button>
+            <!-- Tombol Aksi Riwayat -->
+            <div class="space-y-2">
+                <button onclick="exportToCSV()" class="w-full bg-emerald-600 hover:bg-emerald-500 p-2.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1">
+                    📥 Ekspor Data ke Excel (CSV)
+                </button>
+                <button onclick="clearAttendanceToday()" class="w-full bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-600/50 p-2.5 rounded-lg text-xs font-semibold transition">
+                    Reset Absensi Hari Ini
+                </button>
+            </div>
         </div>
     </div>
 
+    <!-- Skrip Logika Aplikasi -->
     <script>
         const video = document.getElementById('videoElement');
+        const canvas = document.getElementById('snapshotCanvas');
         const statusText = document.getElementById('statusText');
         const studentNameInput = document.getElementById('studentNameInput');
         const dbStats = document.getElementById('databaseStats');
         const attendanceModal = document.getElementById('attendanceModal');
         const attendanceListContainer = document.getElementById('attendanceListContainer');
 
-        // Database Lokal Menggunakan localStorage
         let studentDatabase = JSON.parse(localStorage.getItem('students')) || {};
         let attendanceLog = JSON.parse(localStorage.getItem('attendance')) || {};
 
         updateStats();
 
-        // 1. Mengaktifkan Kamera Ponsel Langsung di Browser
         async function initCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -91,7 +111,6 @@
             }
         }
 
-        // 2. Fungsi Mendaftarkan Wajah Siswa ke Memori Ponsel
         function registerStudent() {
             const name = studentNameInput.value.trim();
             if (!name) {
@@ -110,7 +129,15 @@
             updateStats();
         }
 
-        // 3. Fungsi Memulai Pemindaian Absensi
+        // Fungsi Mengambil Tangkapan Layar (Snapshot) dari Video
+        function captureSnapshot() {
+            canvas.width = video.videoWidth || 300;
+            canvas.height = video.videoHeight || 400;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL('image/jpeg', 0.7); // Mengembalikan format base64 gambar terkompres
+        }
+
         function startAttendance() {
             const keys = Object.keys(studentDatabase);
             if (keys.length === 0) {
@@ -128,9 +155,13 @@
                 if (attendanceLog[attendanceKey]) {
                     statusText.innerText = `${randomStudent} sudah absen hari ini!`;
                 } else {
+                    // Ambil foto dari kamera saat sukses absen
+                    const photoSnapshot = captureSnapshot();
+
                     attendanceLog[attendanceKey] = {
                         name: randomStudent,
-                        time: new Date().toLocaleTimeString()
+                        time: new Date().toLocaleTimeString(),
+                        photo: photoSnapshot
                     };
                     localStorage.setItem('attendance', JSON.stringify(attendanceLog));
                     statusText.innerText = `Absen Berhasil: ${randomStudent}!`;
@@ -139,7 +170,6 @@
             }, 2000);
         }
 
-        // Memperbarui Tampilan Informasi Database Lokal di Layar
         function updateStats() {
             const totalStudents = Object.keys(studentDatabase).length;
             const today = new Date().toISOString().slice(0, 10);
@@ -148,7 +178,6 @@
             dbStats.innerText = `Total Siswa Terdaftar: ${totalStudents} | Absensi Hari Ini: ${totalAttendance}`;
         }
 
-        // 4. Menampilkan Modal Data Absen
         function openAttendanceModal() {
             attendanceListContainer.innerHTML = '';
             const today = new Date().toISOString().slice(0, 10);
@@ -161,10 +190,16 @@
             } else {
                 todayRecords.forEach(record => {
                     const item = document.createElement('div');
-                    item.className = 'flex justify-between items-center pt-2 pb-2 text-sm';
+                    item.className = 'flex justify-between items-center py-2 text-sm';
                     item.innerHTML = `
-                        <span class="font-medium text-white">${record.name}</span>
-                        <span class="text-xs text-emerald-400 bg-emerald-950/50 px-2 py-1 rounded">${record.time}</span>
+                        <div class="flex items-center gap-3">
+                            <img src="${record.photo}" class="w-10 h-10 rounded-full object-cover border border-slate-600" alt="Foto">
+                            <div>
+                                <p class="font-medium text-white">${record.name}</p>
+                                <p class="text-[10px] text-emerald-400">${record.time}</p>
+                            </div>
+                        </div>
+                        <span class="text-xs bg-emerald-950/50 text-emerald-400 px-2 py-1 rounded">Hadir</span>
                     `;
                     attendanceListContainer.appendChild(item);
                 });
@@ -173,12 +208,35 @@
             attendanceModal.classList.remove('hidden');
         }
 
-        // Menutup Modal Data Absen
         function closeAttendanceModal() {
             attendanceModal.classList.add('hidden');
         }
 
-        // Mereset Absensi Hari Ini
+        function exportToCSV() {
+            const today = new Date().toISOString().slice(0, 10);
+            const todayRecords = Object.keys(attendanceLog)
+                .filter(k => k.startsWith(today))
+                .map(k => attendanceLog[k]);
+
+            if (todayRecords.length === 0) {
+                alert("Tidak ada data absensi untuk diekspor hari ini!");
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,No,Nama Siswa,Jam Kehadiran,Status\n";
+            todayRecords.forEach((record, index) => {
+                csvContent += `${index + 1},"${record.name}","${record.time}","Hadir"\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `Absensi_${today}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
         function clearAttendanceToday() {
             if (confirm("Yakin ingin mereset data absensi hari ini?")) {
                 const today = new Date().toISOString().slice(0, 10);
@@ -193,9 +251,9 @@
             }
         }
 
-        // Jalankan kamera saat halaman dimuat
         window.addEventListener('load', initCamera);
     </script>
 </body>
-</html>
+    </html>
+
 
